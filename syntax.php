@@ -1,5 +1,12 @@
 <?php
      
+	 /**
+	 * JSON to EFIT Plugin for eve online
+	 * Takes JSON formated fits and converts them to EFIT syntax.
+	 * Made for Brave Newbies.
+	 */
+	 
+	 
     // must be run within Dokuwiki
     if(!defined('DOKU_INC')) die();
      
@@ -9,13 +16,16 @@
      */
     class syntax_plugin_JSONtoEFIT extends DokuWiki_Syntax_Plugin {
      
-        public function getType(){ return 'formatting'; }
-        public function getAllowedTypes() { return array('formatting', 'substition', 'disabled'); }   
+        public function getType(){ return 'substition'; }
+        public function getAllowedTypes() { return array(); }   
         public function getSort(){ return 158; }
         public function connectTo($mode) { $this->Lexer->addEntryPattern('<efit>.*?(?=</efit>)',$mode,'plugin_JSONtoEFIT'); }
         public function postConnect() { $this->Lexer->addExitPattern('</efit>','plugin_JSONtoEFIT'); }
      
-        
+        /**
+		 * Takes JSON formatted data from one slot (e.g. low). Provides different output depending on if it should be displayed line by line or as "x500 Mjolnir Navy issue..."
+		 * $writeOutQuantities (Default true) true means write as xQuantity (for ammo) false means write line by line (for modules)	
+		 */
         public function convertSection($data, $writeOutQuantities=true) {
 
             $result = "";
@@ -25,7 +35,7 @@
             if ($data) {
          
                 foreach ($data as $el) {
-         
+					//Write out as "xQuantity"
                     if ($writeOutQuantities) {
          
                         for ($i = 0; $i < $el->quantity; $i++){
@@ -33,7 +43,7 @@
                             $result .= $el->name . "\n";
          
                         }
-         
+					//Write out line by line
                     } else {
          
                         $result .= $el->name . " x" . $el->quantity ."\n";
@@ -48,9 +58,18 @@
          
          }
 
+		 /**
+		 * Takes JSON formatted data from API. 
+		 * Takes input from convertSection function and prepares a string formatted in Efit style
+		 */
          public function convert($data){
             
-            $fitJSONDecoded = $data;
+            //Cancel if in comments
+			if (isset($_REQUEST['comment'])) {
+				return false;
+			}
+			
+			$fitJSONDecoded = $data;
 
             //Fit Name
             $stFitname = $fitJSONDecoded->fitting_name;
@@ -73,7 +92,8 @@
             $drones = $this->convertSection($fitJSONDecoded->drones, false);
 
             $ammo = $this->convertSection($fitJSONDecoded->ammo, false);
-    
+			
+			// Take above information and convert to efit
             $efit = join("\r\n\r\n", [$stHeader, $low, $med, $high, $rigs, $drones, $ammo]);
 
             return $efit;
@@ -89,19 +109,26 @@
             switch ($state) {
               case DOKU_LEXER_ENTER :
 
-                //Get Doctrine name from between tags               
+                //Get Doctrine name from between tags in order to pass to search for fit.              
                 list($efit, $fit) = preg_split("(<efit>)",$match);
 
-                //Request for doctrine from website (Patriot test)
-                
-                    $Fitfinal = "";
+                //Request for doctrine from website using base URL provided in config               
+                    
+					$Fitfinal = "";
+					$fetcherror= "";
                     //$baseurl = "https://b9wsp01mkc.execute-api.us-east-1.amazonaws.com/dev/fittings/";
                     $baseurl = $this->getConf('BASEURL');
-
+					
+					//Check baseurl for problems (baseurl should be http(s) due to regex in config settings, but safety first.
+					if ($baseurl == "") {
+						$fetcherror = "Empty url, please check configuration";
+					}
+									
                     error_log($baseurl);
-
-                    $url = $baseurl . $fit;
-                    $fitJSON = @file_get_contents($url);
+					//Merge base url and fit name
+					$fitunicode = rawurlencode($fit);
+                    $url = $baseurl . $fitunicode;
+					$fitJSON = @file_get_contents($url);
                     //Error handling for bad fit name
                     if (strpos($http_response_header[0], "200")){
                         $fitJSONDecoded = json_decode($fitJSON);
@@ -109,12 +136,12 @@
                     } else {
                         error_log("Failed JSON GET");
                         //Prepare error message to display on screen through renderer.
-
+						$fetcherror = "problem getting fit. Reason: " . $http_response_header[0];
                     }
                
                 //error_log($fitJSONDecoded->fitting_name);
 
-                return array($state, $Fitfinal);
+                return array($state, $Fitfinal, $fetcherror);
     
               case DOKU_LEXER_UNMATCHED :  return array($state, $match);
               case DOKU_LEXER_EXIT :       return array($state, '');
@@ -126,17 +153,21 @@
          * Create output
          */
         public function render($mode, Doku_Renderer $renderer, $data) {
-            // $data is what the function handle() return'ed.
+            // $data is what the function handle() returned.
             if($mode == 'xhtml'){
                 /** @var Doku_Renderer_xhtml $renderer */
-                list($state,$match) = $data;
+                list($state,$match,$fetcherror) = $data;
                 switch ($state) {
-                    case DOKU_LEXER_ENTER :      
-                        
-                        $renderer->code($match);
-
+                    case DOKU_LEXER_ENTER :
+						//Display error instead of efit if error occurs.
+                        if(!empty($fetcherror){
+							$renderer->code($fetcherror);
+						}else{
+							$renderer->code(htmlspecialchars($match));
+		
                         //$renderer->doc .= $match;
-                        break;
+							break;
+						}
      
                     case DOKU_LEXER_UNMATCHED :  
                         $renderer->doc .= $renderer->_xmlEntities($match); 
@@ -151,4 +182,3 @@
         }
      
     }
-
