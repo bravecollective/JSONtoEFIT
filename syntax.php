@@ -116,7 +116,6 @@
                     
 					$Fitfinal = "";
 					$fetcherror= "";
-                    //$baseurl = "https://b9wsp01mkc.execute-api.us-east-1.amazonaws.com/dev/fittings/";
                     $baseurl = $this->getConf('BASEURL');
 					
 					//Check baseurl for problems (baseurl should be http(s) due to regex in config settings, but safety first.
