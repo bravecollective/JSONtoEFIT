@@ -91,10 +91,10 @@
 
             $drones = $this->convertSection($fitJSONDecoded->drones, false);
 
-            $ammo = $this->convertSection($fitJSONDecoded->ammo, false);
+            $charges = $this->convertSection($fitJSONDecoded->ammo, false);
 			
 			// Take above information and convert to efit
-            $efit = join("\r\n\r\n", [$stHeader, $low, $med, $high, $rigs, $drones, $ammo]);
+            $efit = join("\r\n\r\n", [$stHeader, $low, $med, $high, $rigs, $drones, $charges]);
 
             return $efit;
 
@@ -136,7 +136,10 @@
                     } else {
                         error_log("Failed JSON GET");
                         //Prepare error message to display on screen through renderer.
-						$fetcherror = "problem getting fit. Reason: " . $http_response_header[0];
+                        //User friendly errors for potential errors
+                        if (strpos($http_response_header[0], "404")){
+                        $fetcherror = "problem getting fit. Reason: Fit not found ";
+                        }
                     }
                
                 //error_log($fitJSONDecoded->fitting_name);
@@ -160,7 +163,7 @@
                 switch ($state) {
                     case DOKU_LEXER_ENTER :
 						//Display error instead of efit if error occurs.
-                        if(!empty($fetcherror){
+                        if(!empty($fetcherror)){
 							$renderer->code($fetcherror);
 						}else{
 							$renderer->code(htmlspecialchars($match));
