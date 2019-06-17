@@ -1,0 +1,6 @@
+base jsontoefit
+author Lister
+email n/a
+date 04/06/2019
+name JSON to Eve online EFIT
+desc Plugin to read JSON format from JSON API and convert to EFIT
